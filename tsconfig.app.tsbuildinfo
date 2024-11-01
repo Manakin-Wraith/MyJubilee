@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/types.ts","./src/vite-env.d.ts","./src/components/auth.tsx","./src/components/listcreation.tsx","./src/components/listdisplay.tsx","./src/components/onboarding.tsx","./src/components/sharedlistview.tsx"],"version":"5.6.3"}

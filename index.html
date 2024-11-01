@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎁</text></svg>">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jubilee</title>
+    <!-- Load the tsparticles script -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.9.3/tsparticles.bundle.min.js"></script>
+    <script>
+      function loadConfetti(elementId) {
+        tsParticles.load(elementId, {
+          particles: {
+            number: { value: 0 },
+            color: { value: ["#00FFFC", "#FC00FF", "#fffc00"] },
+            shape: {
+              type: ["circle", "square", "character"],
+              options: {
+                character: { value: "🎁", font: "Arial", style: "", weight: "800", fill: true },
+              },
+            },
+            opacity: {
+              value: { min: 0, max: 1 },
+              animation: { enable: true, speed: 2, startValue: "max", destroy: "min" },
+            },
+            size: { value: { min: 3, max: 7 } },
+            life: { duration: { sync: true, value: 5 }, count: 1 },
+            move: {
+              enable: true,
+              gravity: { enable: true, acceleration: 10 },
+              speed: { min: 10, max: 20 },
+              decay: 0.1,
+              direction: "none",
+            },
+          },
+          interactivity: {
+            events: {
+              onClick: { enable: true, mode: "push" },
+            },
+            modes: { push: { quantity: 10 } },
+          },
+          emitters: [
+            {
+              direction: "none",
+              rate: { delay: 0.25, quantity: 10 },
+              position: { x: 50, y: 0 },
+              size: { width: 100, height: 0 },
+            },
+          ],
+        });
+      }
+    </script>
+    <style>
+      /* Gradient Background */
+      body {
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%);
+        overflow: hidden;
+      }
+      /* Confetti Canvas */
+      #confetti-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1; /* Keeps confetti behind main content */
+      }
+    </style>
+  </head>
+  <body onload="loadConfetti('confetti-canvas')">
+    <!-- Confetti Canvas -->
+    <canvas id="confetti-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;"></canvas>
+    
+    <!-- React Root Element -->
+    <div id="root"></div>
+    
+    <!-- React Script -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,2 +1,0 @@
-# MyJubilee
-Gift Listing app
