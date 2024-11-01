@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Wishlist } from '../types';
 import { Trash2 } from 'lucide-react';
+import { db } from '../lib/firebase';
+import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
 
 interface OnboardingProps {
   onStartList: (listName: string) => void;
@@ -8,10 +10,34 @@ interface OnboardingProps {
   onSelectList: (wishlist: Wishlist) => void;
   onDeleteList: (listId: string) => void;
   onLogout: () => void;
+  userId: string;
 }
 
-const Onboarding: React.FC<OnboardingProps> = ({ onStartList, wishlists, onSelectList, onDeleteList, onLogout }) => {
+const Onboarding: React.FC<OnboardingProps> = ({
+  onStartList,
+  wishlists,
+  onSelectList,
+  onDeleteList,
+  onLogout,
+  userId
+}) => {
   const [listName, setListName] = useState('');
+  const [userWishlists, setUserWishlists] = useState<Wishlist[]>([]);
+
+  useEffect(() => {
+    const fetchWishlists = async () => {
+      const wishlistsRef = collection(db, 'wishlists');
+      const q = query(wishlistsRef, where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const lists: Wishlist[] = [];
+      querySnapshot.forEach((doc) => {
+        lists.push({ id: doc.id, ...doc.data() } as Wishlist);
+      });
+      setUserWishlists(lists);
+    };
+
+    fetchWishlists();
+  }, [userId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,13 +46,22 @@ const Onboarding: React.FC<OnboardingProps> = ({ onStartList, wishlists, onSelec
     }
   };
 
+  const handleDeleteList = async (listId: string) => {
+    try {
+      await deleteDoc(doc(db, 'wishlists', listId));
+      onDeleteList(listId);
+    } catch (error) {
+      console.error('Error deleting wishlist:', error);
+    }
+  };
+
   return (
     <div className="w-full max-w-md bg-white shadow-md rounded-lg p-6">
       <h2 className="text-2xl font-semibold mb-4 text-center">Your Wishlists</h2>
-      {wishlists.length > 0 && (
+      {userWishlists.length > 0 && (
         <div className="mb-6">
           <ul className="space-y-2">
-            {wishlists.map((wishlist) => (
+            {userWishlists.map((wishlist) => (
               <li key={wishlist.id} className="flex items-center justify-between">
                 <button
                   onClick={() => onSelectList(wishlist)}
@@ -35,7 +70,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onStartList, wishlists, onSelec
                   {wishlist.name}
                 </button>
                 <button
-                  onClick={() => onDeleteList(wishlist.id)}
+                  onClick={() => handleDeleteList(wishlist.id)}
                   className="p-2 text-red-600 hover:text-red-800 rounded-full hover:bg-red-100"
                   title="Delete wishlist"
                 >

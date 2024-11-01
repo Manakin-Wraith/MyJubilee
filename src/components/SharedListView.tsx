@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ExternalLink, Gift } from 'lucide-react';
-import { Wishlist, WishlistItem } from '../types';
+import { Wishlist } from '../types';
+import { db } from '../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface SharedListViewProps {
   wishlistId: string;
@@ -12,25 +14,19 @@ const SharedListView: React.FC<SharedListViewProps> = ({ wishlistId }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulating API call to fetch the shared wishlist
     const fetchWishlist = async () => {
       try {
-        // In a real application, you would make an API call here
-        // For now, we'll use localStorage to simulate data fetching
-        const storedWishlists = localStorage.getItem('wishlists');
-        if (storedWishlists) {
-          const wishlists: Wishlist[] = JSON.parse(storedWishlists);
-          const foundWishlist = wishlists.find(w => w.id === wishlistId);
-          if (foundWishlist) {
-            setWishlist(foundWishlist);
-          } else {
-            setError('Wishlist not found');
-          }
+        const wishlistRef = doc(db, 'wishlists', wishlistId);
+        const wishlistDoc = await getDoc(wishlistRef);
+        
+        if (wishlistDoc.exists()) {
+          setWishlist({ id: wishlistDoc.id, ...wishlistDoc.data() } as Wishlist);
         } else {
-          setError('No wishlists available');
+          setError('Wishlist not found');
         }
       } catch (err) {
         setError('Error fetching wishlist');
+        console.error('Error fetching wishlist:', err);
       } finally {
         setLoading(false);
       }
@@ -40,11 +36,21 @@ const SharedListView: React.FC<SharedListViewProps> = ({ wishlistId }) => {
   }, [wishlistId]);
 
   if (loading) {
-    return <div className="text-center">Loading...</div>;
+    return (
+      <div className="w-full max-w-2xl bg-white shadow-md rounded-lg p-6">
+        <div className="flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        </div>
+      </div>
+    );
   }
 
   if (error || !wishlist) {
-    return <div className="text-center text-red-600">{error || 'Wishlist not found'}</div>;
+    return (
+      <div className="w-full max-w-2xl bg-white shadow-md rounded-lg p-6">
+        <div className="text-center text-red-600">{error || 'Wishlist not found'}</div>
+      </div>
+    );
   }
 
   const groupedItems = wishlist.items.reduce((acc, item) => {
@@ -53,7 +59,7 @@ const SharedListView: React.FC<SharedListViewProps> = ({ wishlistId }) => {
     }
     acc[item.category].push(item);
     return acc;
-  }, {} as Record<string, WishlistItem[]>);
+  }, {} as Record<string, typeof wishlist.items>);
 
   return (
     <div className="w-full max-w-2xl bg-white shadow-md rounded-lg p-6">

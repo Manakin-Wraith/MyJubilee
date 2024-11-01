@@ -6,7 +6,9 @@ import ListDisplay from './components/ListDisplay';
 import SharedListView from './components/SharedListView';
 import Auth from './components/Auth';
 import { Wishlist, User } from './types';
-
+import { auth, db } from './lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { collection, addDoc, Timestamp } from 'firebase/firestore';
 
 function App() {
   const [step, setStep] = useState<'auth' | 'onboarding' | 'listCreation' | 'listDisplay' | 'sharedView'>('auth');
@@ -16,69 +18,74 @@ function App() {
   const [sharedListId, setSharedListId] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-      setStep('onboarding');
-    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUser(user as User);
+        setStep('onboarding');
+      } else {
+        setUser(null);
+        setStep('auth');
+      }
+    });
 
-    const storedWishlists = localStorage.getItem('wishlists');
-    if (storedWishlists) {
-      setWishlists(JSON.parse(storedWishlists));
-    }
-
-    // Check if there's a shared list ID in the URL
     const urlParams = new URLSearchParams(window.location.search);
     const sharedId = urlParams.get('sharedList');
     if (sharedId) {
       setSharedListId(sharedId);
       setStep('sharedView');
     }
+
+    return () => unsubscribe();
   }, []);
 
   const handleLogin = (user: User) => {
     setUser(user);
-    localStorage.setItem('user', JSON.stringify(user));
     setStep('onboarding');
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
-    setStep('auth');
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      setStep('auth');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const handleStartList = (listName: string) => {
-    const newWishlist: Wishlist = { id: Date.now().toString(), name: listName, items: [], userId: user!.id };
+    const newWishlist: Wishlist = {
+      id: Date.now().toString(),
+      name: listName,
+      items: [],
+      userId: user!.uid,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
     setWishlist(newWishlist);
     setStep('listCreation');
   };
 
-  const handleListCreated = (items: Wishlist['items']) => {
-    const updatedWishlist = { ...wishlist!, items };
-    setWishlist(updatedWishlist);
-    setWishlists([...wishlists, updatedWishlist]);
-    localStorage.setItem('wishlists', JSON.stringify([...wishlists, updatedWishlist]));
-    setStep('listDisplay');
-  };
+  const handleListCreated = async (items: Wishlist['items']) => {
+    if (!wishlist || !user) return;
 
-  const handleUpdateList = (updatedWishlist: Wishlist) => {
-    setWishlist(updatedWishlist);
-    const updatedWishlists = wishlists.map(list => list.id === updatedWishlist.id ? updatedWishlist : list);
-    setWishlists(updatedWishlists);
-    localStorage.setItem('wishlists', JSON.stringify(updatedWishlists));
-  };
+    try {
+      const wishlistData = {
+        ...wishlist,
+        items,
+        createdAt: Timestamp.fromDate(new Date()),
+        updatedAt: Timestamp.fromDate(new Date())
+      };
 
-  const handleDeleteList = (listId: string) => {
-    const updatedWishlists = wishlists.filter(list => list.id !== listId);
-    setWishlists(updatedWishlists);
-    localStorage.setItem('wishlists', JSON.stringify(updatedWishlists));
-    setStep('onboarding');
-  };
-
-  const handleSelectList = (selectedWishlist: Wishlist) => {
-    setWishlist(selectedWishlist);
-    setStep('listDisplay');
+      const docRef = await addDoc(collection(db, 'wishlists'), wishlistData);
+      const newWishlist = { ...wishlistData, id: docRef.id };
+      
+      setWishlist(newWishlist);
+      setWishlists([...wishlists, newWishlist]);
+      setStep('listDisplay');
+    } catch (error) {
+      console.error('Error creating wishlist:', error);
+    }
   };
 
   return (
@@ -88,13 +95,14 @@ function App() {
         <h1 className="text-4xl font-bold text-gray-800">JUBILEE</h1>
       </header>
       {step === 'auth' && <Auth onLogin={handleLogin} />}
-      {step === 'onboarding' && (
+      {step === 'onboarding' && user && (
         <Onboarding
           onStartList={handleStartList}
           wishlists={wishlists}
-          onSelectList={handleSelectList}
-          onDeleteList={handleDeleteList}
+          onSelectList={setWishlist}
+          onDeleteList={(id) => setWishlists(wishlists.filter(w => w.id !== id))}
           onLogout={handleLogout}
+          userId={user.uid}
         />
       )}
       {step === 'listCreation' && wishlist && (
@@ -103,8 +111,11 @@ function App() {
       {step === 'listDisplay' && wishlist && (
         <ListDisplay
           wishlist={wishlist}
-          onUpdateList={handleUpdateList}
-          onDeleteList={handleDeleteList}
+          onUpdateList={setWishlist}
+          onDeleteList={() => {
+            setWishlists(wishlists.filter(w => w.id !== wishlist.id));
+            setStep('onboarding');
+          }}
           onBack={() => setStep('onboarding')}
         />
       )}
