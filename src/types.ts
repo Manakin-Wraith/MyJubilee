@@ -1,4 +1,5 @@
 import { User as FirebaseUser } from 'firebase/auth';
+import { Timestamp } from 'firebase/firestore';
 
 export interface WishlistItem {
   id: string;
@@ -12,8 +13,8 @@ export interface Wishlist {
   name: string;
   items: WishlistItem[];
   userId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 export interface User extends FirebaseUser {

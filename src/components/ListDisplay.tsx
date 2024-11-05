@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ExternalLink, Share2, ArrowLeft, Edit2, Trash2, Plus } from 'lucide-react';
 import { Wishlist, WishlistItem } from '../types';
 import { db } from '../lib/firebase';
-import { doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 
 interface ListDisplayProps {
   wishlist: Wishlist;
@@ -16,7 +16,6 @@ const ListDisplay: React.FC<ListDisplayProps> = ({ wishlist, onUpdateList, onDel
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [newItem, setNewItem] = useState<Omit<WishlistItem, 'id'>>({ category: '', description: '', url: '' });
   const [isAddingItem, setIsAddingItem] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const groupedItems = wishlist.items.reduce((acc, item) => {
     if (!acc[item.category]) {
@@ -24,61 +23,38 @@ const ListDisplay: React.FC<ListDisplayProps> = ({ wishlist, onUpdateList, onDel
     }
     acc[item.category].push(item);
     return acc;
-  }, {} as Record<string, WishlistItem[]>);
+  }, {} as Record<string, typeof wishlist.items>);
+
+  const updateFirestore = async (updatedWishlist: Wishlist) => {
+    try {
+      const wishlistRef = doc(db, 'wishlists', wishlist.id);
+      await updateDoc(wishlistRef, {
+        ...updatedWishlist,
+        updatedAt: Timestamp.fromDate(new Date())
+      });
+      onUpdateList(updatedWishlist);
+    } catch (error) {
+      console.error('Error updating wishlist:', error);
+    }
+  };
 
   const handleEditItem = (item: WishlistItem) => {
     setEditingItem(item);
-    setError(null);
   };
 
   const handleUpdateItem = async (updatedItem: WishlistItem) => {
-    try {
-      const updatedItems = wishlist.items.map(item => 
-        item.id === updatedItem.id ? updatedItem : item
-      );
-      
-      const updatedWishlist = {
-        ...wishlist,
-        items: updatedItems,
-        updatedAt: new Date()
-      };
-
-      const wishlistRef = doc(db, 'wishlists', wishlist.id);
-      await updateDoc(wishlistRef, {
-        items: updatedItems,
-        updatedAt: Timestamp.fromDate(new Date())
-      });
-
-      onUpdateList(updatedWishlist);
-      setEditingItem(null);
-      setError(null);
-    } catch (err) {
-      console.error('Error updating item:', err);
-      setError('Failed to update item. Please try again.');
-    }
+    const updatedItems = wishlist.items.map(item => 
+      item.id === updatedItem.id ? updatedItem : item
+    );
+    const updatedWishlist = { ...wishlist, items: updatedItems };
+    await updateFirestore(updatedWishlist);
+    setEditingItem(null);
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    try {
-      const updatedItems = wishlist.items.filter(item => item.id !== itemId);
-      const updatedWishlist = {
-        ...wishlist,
-        items: updatedItems,
-        updatedAt: new Date()
-      };
-
-      const wishlistRef = doc(db, 'wishlists', wishlist.id);
-      await updateDoc(wishlistRef, {
-        items: updatedItems,
-        updatedAt: Timestamp.fromDate(new Date())
-      });
-
-      onUpdateList(updatedWishlist);
-      setError(null);
-    } catch (err) {
-      console.error('Error deleting item:', err);
-      setError('Failed to delete item. Please try again.');
-    }
+    const updatedItems = wishlist.items.filter(item => item.id !== itemId);
+    const updatedWishlist = { ...wishlist, items: updatedItems };
+    await updateFirestore(updatedWishlist);
   };
 
   const handleShare = () => {
@@ -87,60 +63,19 @@ const ListDisplay: React.FC<ListDisplayProps> = ({ wishlist, onUpdateList, onDel
     navigator.clipboard.writeText(shareableUrl);
   };
 
-  const handleDeleteWishlist = async () => {
-    if (!window.confirm('Are you sure you want to delete this wishlist?')) {
-      return;
-    }
-
-    try {
-      await deleteDoc(doc(db, 'wishlists', wishlist.id));
-      onDeleteList(wishlist.id);
-      setError(null);
-    } catch (err) {
-      console.error('Error deleting wishlist:', err);
-      setError('Failed to delete wishlist. Please try again.');
-    }
-  };
-
   const handleAddItem = async () => {
-    if (!newItem.category || !newItem.description) {
-      setError('Please fill in all required fields.');
-      return;
-    }
-
-    try {
+    if (newItem.category && newItem.description) {
       const newItemWithId = { ...newItem, id: Date.now().toString() };
       const updatedItems = [...wishlist.items, newItemWithId];
-      const updatedWishlist = {
-        ...wishlist,
-        items: updatedItems,
-        updatedAt: new Date()
-      };
-
-      const wishlistRef = doc(db, 'wishlists', wishlist.id);
-      await updateDoc(wishlistRef, {
-        items: updatedItems,
-        updatedAt: Timestamp.fromDate(new Date())
-      });
-
-      onUpdateList(updatedWishlist);
+      const updatedWishlist = { ...wishlist, items: updatedItems };
+      await updateFirestore(updatedWishlist);
       setNewItem({ category: '', description: '', url: '' });
       setIsAddingItem(false);
-      setError(null);
-    } catch (err) {
-      console.error('Error adding item:', err);
-      setError('Failed to add item. Please try again.');
     }
   };
 
   return (
     <div className="max-w-screen-md flex-row bg-white shadow-md rounded-lg p-9">
-      {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
-          {error}
-        </div>
-      )}
-
       <div className="flex justify-between items-center mb-4">
         <button onClick={onBack} className="text-indigo-600 hover:text-indigo-800 flex items-center mr-4">
           <ArrowLeft className="w-4 h-4 mr-1" /> Back
@@ -149,20 +84,17 @@ const ListDisplay: React.FC<ListDisplayProps> = ({ wishlist, onUpdateList, onDel
           <button onClick={handleShare} className="text-indigo-600 hover:text-indigo-800 flex items-center">
             <Share2 className="w-4 h-4 mr-1" /> Share
           </button>
-          <button onClick={handleDeleteWishlist} className="text-red-600 hover:text-red-800 flex items-center">
+          <button onClick={() => onDeleteList(wishlist.id)} className="text-red-600 hover:text-red-800 flex items-center">
             <Trash2 className="w-4 h-4 mr-1" /> Delete List
           </button>
         </div>
       </div>
-
       <h2 className="text-2xl font-semibold mb-4">{wishlist.name}</h2>
-
       {shareUrl && (
         <div className="mb-4 p-2 bg-green-100 text-green-800 rounded">
           Shareable link copied to clipboard: {shareUrl}
         </div>
       )}
-
       {Object.entries(groupedItems).map(([category, items]) => (
         <div key={category} className="mb-6">
           <h3 className="text-xl font-medium mb-2">{category}</h3>
@@ -218,7 +150,6 @@ const ListDisplay: React.FC<ListDisplayProps> = ({ wishlist, onUpdateList, onDel
           </ul>
         </div>
       ))}
-
       {isAddingItem ? (
         <div className="mt-6 bg-gray-50 p-4 rounded-md">
           <h3 className="text-lg font-medium mb-2">Add New Item</h3>
@@ -233,17 +164,8 @@ const ListDisplay: React.FC<ListDisplayProps> = ({ wishlist, onUpdateList, onDel
                 {category}
               </option>
             ))}
-            <option value="new">+ New Category</option>
+            <option value="new">+ Add New Category</option>
           </select>
-          {newItem.category === 'new' && (
-            <input
-              type="text"
-              value={newItem.category}
-              onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md mb-2"
-              placeholder="Enter new category name"
-            />
-          )}
           <input
             type="text"
             value={newItem.description}
@@ -266,10 +188,7 @@ const ListDisplay: React.FC<ListDisplayProps> = ({ wishlist, onUpdateList, onDel
               Add Item
             </button>
             <button
-              onClick={() => {
-                setIsAddingItem(false);
-                setNewItem({ category: '', description: '', url: '' });
-              }}
+              onClick={() => setIsAddingItem(false)}
               className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400"
             >
               Cancel

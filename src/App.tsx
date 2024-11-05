@@ -8,7 +8,7 @@ import Auth from './components/Auth';
 import { Wishlist, User } from './types';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, Timestamp, doc, deleteDoc } from 'firebase/firestore';
 
 function App() {
   const [step, setStep] = useState<'auth' | 'onboarding' | 'listCreation' | 'listDisplay' | 'sharedView'>('auth');
@@ -55,12 +55,12 @@ function App() {
 
   const handleStartList = (listName: string) => {
     const newWishlist: Wishlist = {
-      id: Date.now().toString(),
+      id: '',
       name: listName,
       items: [],
       userId: user!.uid,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: Timestamp.fromDate(new Date()),
+      updatedAt: Timestamp.fromDate(new Date())
     };
     setWishlist(newWishlist);
     setStep('listCreation');
@@ -71,14 +71,15 @@ function App() {
 
     try {
       const wishlistData = {
-        ...wishlist,
+        name: wishlist.name,
         items,
+        userId: user.uid,
         createdAt: Timestamp.fromDate(new Date()),
         updatedAt: Timestamp.fromDate(new Date())
       };
 
       const docRef = await addDoc(collection(db, 'wishlists'), wishlistData);
-      const newWishlist = { ...wishlistData, id: docRef.id };
+      const newWishlist = { ...wishlistData, id: docRef.id } as Wishlist;
       
       setWishlist(newWishlist);
       setWishlists([...wishlists, newWishlist]);
@@ -86,6 +87,22 @@ function App() {
     } catch (error) {
       console.error('Error creating wishlist:', error);
     }
+  };
+
+  const handleDeleteList = async (listId: string) => {
+    try {
+      await deleteDoc(doc(db, 'wishlists', listId));
+      setWishlists(wishlists.filter(w => w.id !== listId));
+      setStep('onboarding');
+    } catch (error) {
+      console.error('Error deleting wishlist:', error);
+    }
+  };
+
+  // New function to handle wishlist selection
+  const handleSelectList = (selectedWishlist: Wishlist) => {
+    setWishlist(selectedWishlist);
+    setStep('listDisplay'); // Navigate to the list display step
   };
 
   return (
@@ -99,8 +116,8 @@ function App() {
         <Onboarding
           onStartList={handleStartList}
           wishlists={wishlists}
-          onSelectList={setWishlist}
-          onDeleteList={(id) => setWishlists(wishlists.filter(w => w.id !== id))}
+          onSelectList={handleSelectList} // Use the new function
+          onDeleteList={handleDeleteList}
           onLogout={handleLogout}
           userId={user.uid}
         />
@@ -112,10 +129,7 @@ function App() {
         <ListDisplay
           wishlist={wishlist}
           onUpdateList={setWishlist}
-          onDeleteList={() => {
-            setWishlists(wishlists.filter(w => w.id !== wishlist.id));
-            setStep('onboarding');
-          }}
+          onDeleteList={handleDeleteList}
           onBack={() => setStep('onboarding')}
         />
       )}
