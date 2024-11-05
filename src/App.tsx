@@ -18,6 +18,17 @@ function App() {
   const [sharedListId, setSharedListId] = useState<string | null>(null);
 
   useEffect(() => {
+    // First, check for shared list parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedId = urlParams.get('sharedList');
+    
+    if (sharedId) {
+      setSharedListId(sharedId);
+      setStep('sharedView');
+      return; // Exit early if it's a shared list view
+    }
+
+    // If no shared list, handle auth state
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUser(user as User);
@@ -27,13 +38,6 @@ function App() {
         setStep('auth');
       }
     });
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const sharedId = urlParams.get('sharedList');
-    if (sharedId) {
-      setSharedListId(sharedId);
-      setStep('sharedView');
-    }
 
     return () => unsubscribe();
   }, []);
@@ -99,11 +103,23 @@ function App() {
     }
   };
 
-  // New function to handle wishlist selection
   const handleSelectList = (selectedWishlist: Wishlist) => {
     setWishlist(selectedWishlist);
-    setStep('listDisplay'); // Navigate to the list display step
+    setStep('listDisplay');
   };
+
+  // Render shared view immediately if sharedListId exists
+  if (step === 'sharedView' && sharedListId) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        <header className="w-full max-w-2xl mb-8 flex items-center justify-center">
+          <Gift className="w-12 h-12 mr-2 text-indigo-600" />
+          <h1 className="text-4xl font-bold text-gray-800">JUBILEE</h1>
+        </header>
+        <SharedListView wishlistId={sharedListId} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -116,7 +132,7 @@ function App() {
         <Onboarding
           onStartList={handleStartList}
           wishlists={wishlists}
-          onSelectList={handleSelectList} // Use the new function
+          onSelectList={handleSelectList}
           onDeleteList={handleDeleteList}
           onLogout={handleLogout}
           userId={user.uid}
@@ -132,9 +148,6 @@ function App() {
           onDeleteList={handleDeleteList}
           onBack={() => setStep('onboarding')}
         />
-      )}
-      {step === 'sharedView' && sharedListId && (
-        <SharedListView wishlistId={sharedListId} />
       )}
     </div>
   );
