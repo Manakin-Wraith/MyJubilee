@@ -26,12 +26,11 @@ service cloud.firestore {
     // Wishlists collection
     match /wishlists/{wishlistId} {
       // Allow reading if:
-      // 1. The user owns the wishlist
-      // 2. The wishlist is being accessed through a share link
-      allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || 
-        resource.data.shared == true
-      );
+      // 1. The user owns the wishlist (requires auth)
+      // 2. The wishlist is being accessed through a share link (no auth required)
+      allow read: if 
+        request.auth == null || // Allow unauthenticated reads
+        (isAuthenticated() && resource.data.userId == request.auth.uid); // Or owner access
 
       // Allow creation if user is authenticated and verified
       allow create: if isAuthenticated() && 
