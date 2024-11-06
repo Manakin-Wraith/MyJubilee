@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId);
+      allow delete: if false; // Prevent user deletion through client
+    }
+
+    // Wishlists collection
+    match /wishlists/{wishlistId} {
+      // Allow reading if:
+      // 1. The user owns the wishlist
+      // 2. The wishlist is being accessed through a share link
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.shared == true
+      );
+
+      // Allow creation if user is authenticated and verified
+      allow create: if isAuthenticated() && 
+                   isEmailVerified() && 
+                   request.resource.data.userId == request.auth.uid;
+
+      // Allow updates only if:
+      // 1. User is authenticated and verified
+      // 2. User owns the wishlist
+      // 3. Not changing the userId field
+      allow update: if isAuthenticated() && 
+                   isEmailVerified() && 
+                   resource.data.userId == request.auth.uid &&
+                   request.resource.data.userId == resource.data.userId;
+
+      // Allow deletion only if user owns the wishlist
+      allow delete: if isAuthenticated() && 
+                   resource.data.userId == request.auth.uid;
+    }
+  }
+}

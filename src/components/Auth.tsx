@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
 import { auth, db } from '../lib/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  updateProfile,
+  sendEmailVerification 
+} from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { User } from '../types';
+import { Mail } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -14,6 +20,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
+  const [verificationSent, setVerificationSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +37,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           email,
           createdAt: new Date(),
         });
+        await sendEmailVerification(userCredential.user);
+        setVerificationSent(true);
       } else {
         userCredential = await signInWithEmailAndPassword(auth, email, password);
       }
@@ -51,6 +60,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       {error && (
         <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
           {error}
+        </div>
+      )}
+
+      {verificationSent && (
+        <div className="mb-4 p-3 bg-yellow-100 text-yellow-700 rounded-md flex items-center">
+          <Mail className="w-5 h-5 mr-2" />
+          <span>Verification email sent! Please check your inbox.</span>
         </div>
       )}
 
